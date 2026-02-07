@@ -93,55 +93,67 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 // --- API GATEWAY ---
 
 // Apply Auth globally to /api/*
+// --- API GATEWAY & OBSERVABILITY ---
+
+// Apply Auth globally to /api/*
 app.use('/api', authMiddleware);
 
-// Proxy Logic
+// Observability Middleware (The core logic)
+app.use('/api', (req, res, next) => {
+  // Hook into response finish
+  res.on('finish', async () => {
+    const duration = Date.now() - req.startTime;
+    const status = res.statusCode;
+    const path = req.path; // Note: req.path removes '/api' prefix because this middleware is mounted at '/api'
+    const method = req.method;
+
+    console.log(`[Observability] Request finished: ${method} ${path} ${status} (${duration}ms)`);
+
+    // Update Redis
+    try {
+      await redisClient.incr('totalRequests');
+      if (status >= 400) await redisClient.incr('totalErrors');
+      // console.log(`[Redis] Updated`); 
+    } catch (err) {
+      console.error('[Redis] Error:', err);
+    }
+
+    // Log to Postgres
+    try {
+      // Note: req.originalUrl gives full path including /api if needed. specific req.path depends on mount.
+      // Let's use req.originalUrl for clarity in logs, or keep req.path (which is just /posts)
+      await pgClient.query(
+        'INSERT INTO request_logs (method, path, status, latency) VALUES ($1, $2, $3, $4)',
+        [method, req.originalUrl, status, duration]
+      );
+      // console.log(`[Postgres] Logged`);
+    } catch (e) {
+      console.error('[Postgres] Error:', e);
+    }
+
+    // Emit Real-time Update
+    if (io) {
+      const total = await redisClient.get('totalRequests');
+      const errors = await redisClient.get('totalErrors');
+      console.log('Emitting update:', { total, errors, path });
+      io.emit('metrics:update', {
+        totalRequests: parseInt(total || 0),
+        totalErrors: parseInt(errors || 0),
+        lastRequest: { method, path: req.originalUrl, status, latency: duration, time: new Date() }
+      });
+    } else {
+      console.error('Socket.io not initialized');
+    }
+  });
+  next();
+});
+
+// Proxy Logic (Simplified)
 app.use('/api', createProxyMiddleware({
   target: 'https://jsonplaceholder.typicode.com',
   changeOrigin: true,
   pathRewrite: { '^/api': '' },
-  onProxyReq: (proxyReq, req, res) => {
-    // Log proxy attempt
-  },
-  onProxyRes: (proxyRes, req, res) => {
-    const start = req.startTime || Date.now();
-    let body = [];
-    proxyRes.on('data', (chunk) => body.push(chunk));
-    proxyRes.on('end', async () => {
-      const duration = Date.now() - start;
-      const status = proxyRes.statusCode;
-      const path = req.path;
-      const method = req.method;
-
-      // Update Redis
-      await redisClient.incr('totalRequests');
-      if (status >= 400) await redisClient.incr('totalErrors');
-
-      // Log to Postgres
-      try {
-        await pgClient.query(
-          'INSERT INTO request_logs (method, path, status, latency) VALUES ($1, $2, $3, $4)',
-          [method, path, status, duration]
-        );
-      } catch (e) {
-        console.error('PG Log Error:', e);
-      }
-
-      // Emit Real-time Update
-      if (io) {
-        const total = await redisClient.get('totalRequests');
-        const errors = await redisClient.get('totalErrors');
-        console.log('Emitting update:', { total, errors, path }); // DEBUG LOG
-        io.emit('metrics:update', {
-          totalRequests: parseInt(total || 0),
-          totalErrors: parseInt(errors || 0),
-          lastRequest: { method, path, status, latency: duration, time: new Date() }
-        });
-      } else {
-        console.error('Socket.io not initialized, cannot emit update');
-      }
-    });
-  }
+  // No complex hooks needed here anymore
 }));
 
 // --- SERVER START ---

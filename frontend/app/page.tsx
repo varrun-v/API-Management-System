@@ -123,7 +123,7 @@ export default function Home() {
         {/* CHARTS */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h3 className="text-lg font-semibold mb-4">Latency Trend (ms)</h3>
-          <div className="h-64">
+          <div className="h-64 w-full"> {/* Added w-full */}
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
