@@ -36,7 +36,6 @@ export default function Home() {
     });
 
     socket.on('metrics:update', (payload) => {
-      console.log('Received metrics:', payload); // DEBUG LOG
       setMetrics(prev => {
         if (!prev) return {
           totalRequests: payload.totalRequests,
@@ -126,13 +125,34 @@ export default function Home() {
           <div className="h-64 w-full"> {/* Added w-full */}
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="name" fontSize={12} tick={{ fill: '#888' }} />
-                <YAxis fontSize={12} tick={{ fill: '#888' }} />
-                <Tooltip
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  fontSize={10}
+                  tick={{ fill: '#9ca3af' }}
+                  tickLine={false}
+                  axisLine={false}
                 />
-                <Line type="monotone" dataKey="latency" stroke="#6366f1" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <YAxis
+                  fontSize={10}
+                  tick={{ fill: '#9ca3af' }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={30}
+                />
+                <Tooltip
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                  cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 4' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="latency"
+                  stroke="#6366f1"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }}
+                  animationDuration={300}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>

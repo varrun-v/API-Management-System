@@ -107,7 +107,7 @@ app.use('/api', (req, res, next) => {
     const path = req.path; // Note: req.path removes '/api' prefix because this middleware is mounted at '/api'
     const method = req.method;
 
-    console.log(`[Observability] Request finished: ${method} ${path} ${status} (${duration}ms)`);
+    // console.log(`[Observability] Request finished: ${method} ${path} ${status} (${duration}ms)`);
 
     // Update Redis
     try {
@@ -135,7 +135,7 @@ app.use('/api', (req, res, next) => {
     if (io) {
       const total = await redisClient.get('totalRequests');
       const errors = await redisClient.get('totalErrors');
-      console.log('Emitting update:', { total, errors, path });
+      // console.log('Emitting update:', { total, errors, path });
       io.emit('metrics:update', {
         totalRequests: parseInt(total || 0),
         totalErrors: parseInt(errors || 0),
