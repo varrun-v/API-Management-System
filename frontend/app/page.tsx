@@ -103,7 +103,7 @@ export default function Home() {
             API Observability Gateway
           </h1>
           <p className="text-gray-500">
-            Real-time Integration Monitoring
+            Real-time Monitoring
           </p>
         </div>
 
@@ -177,14 +177,18 @@ export default function Home() {
                   type="monotone"
                   dataKey="successLatency"
                   stroke="#22c55e"
+                  strokeWidth={2}
                   dot={false}
+                  connectNulls
                   name="Success (2xx)"
                 />
                 <Line
                   type="monotone"
                   dataKey="errorLatency"
                   stroke="#ef4444"
-                  dot={false}
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: '#ef4444' }}
+                  activeDot={{ r: 6 }}
                   name="Errors (4xx/5xx)"
                 />
               </LineChart>
@@ -213,10 +217,10 @@ export default function Home() {
                 <tr
                   key={i}
                   className={`border-t ${r.status >= 500
-                      ? "bg-red-50"
-                      : r.status >= 400
-                        ? "bg-orange-50"
-                        : ""
+                    ? "bg-red-50"
+                    : r.status >= 400
+                      ? "bg-orange-50"
+                      : ""
                     }`}
                 >
                   <td className="px-3 py-2">
