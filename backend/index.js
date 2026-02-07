@@ -1,4 +1,5 @@
 // backend/index.js
+const crypto = require('crypto');
 require('dotenv').config();
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
@@ -76,11 +77,14 @@ app.get('/metrics', async (req, res) => {
   try {
     const total = await redisClient.get('totalRequests') || 0;
     const errors = await redisClient.get('totalErrors') || 0;
-    const result = await pgClient.query('SELECT * FROM request_logs ORDER BY time DESC LIMIT 10');
+    const result = await pgClient.query('SELECT * FROM request_logs ORDER BY time DESC LIMIT 20'); // Increased limit
+    const lastErrorStr = await redisClient.get('lastError');
+
     res.json({
       totalRequests: parseInt(total),
       totalErrors: parseInt(errors),
-      recent: result.rows
+      recent: result.rows,
+      lastError: lastErrorStr ? JSON.parse(lastErrorStr) : null
     });
   } catch (err) {
     console.error(err);
@@ -90,8 +94,6 @@ app.get('/metrics', async (req, res) => {
 
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// --- API GATEWAY ---
-
 // Apply Auth globally to /api/*
 // --- API GATEWAY & OBSERVABILITY ---
 
@@ -100,6 +102,10 @@ app.use('/api', authMiddleware);
 
 // Observability Middleware (The core logic)
 app.use('/api', (req, res, next) => {
+  // Generate Request ID
+  req.requestId = crypto.randomUUID();
+  res.setHeader('x-request-id', req.requestId);
+
   // Hook into response finish
   res.on('finish', async () => {
     const duration = Date.now() - req.startTime;
@@ -135,12 +141,30 @@ app.use('/api', (req, res, next) => {
     if (io) {
       const total = await redisClient.get('totalRequests');
       const errors = await redisClient.get('totalErrors');
-      // console.log('Emitting update:', { total, errors, path });
-      io.emit('metrics:update', {
+
+      const updatePayload = {
         totalRequests: parseInt(total || 0),
         totalErrors: parseInt(errors || 0),
-        lastRequest: { method, path: req.originalUrl, status, latency: duration, time: new Date() }
-      });
+        lastRequest: {
+          method,
+          path: req.originalUrl,
+          status,
+          latency: duration,
+          time: new Date(),
+          requestId: req.requestId
+        }
+      };
+
+      if (status >= 400) {
+        updatePayload.lastError = updatePayload.lastRequest;
+        // Optionally store last error in Redis for persistence across restarts?
+        // For now, we emit it live.
+        // To support "refresh", we should probably store it.
+        await redisClient.set('lastError', JSON.stringify(updatePayload.lastError));
+      }
+
+      // console.log('Emitting update:', { total, errors, path });
+      io.emit('metrics:update', updatePayload);
     } else {
       console.error('Socket.io not initialized');
     }
